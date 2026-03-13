@@ -1,0 +1,50 @@
+Linki Sustainable Use License
+
+Copyright (c) 2025 Mohammad Al Jumaa
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to use,
+copy, modify, merge, publish, and distribute the Software, subject to the
+following conditions:
+
+---
+
+## Permitted Uses
+
+You may use the Software for any purpose, including commercial purposes, provided
+that you are not offering it as a managed hosting service to third parties.
+
+Specifically, you may:
+
+- Run the Software on your own infrastructure (local machine or VPS) for personal
+  or internal business use.
+- Modify the Software and contribute changes back to the project.
+- Use the Software to conduct outreach and automation for your own business.
+- Offer consulting, support, or integration services that involve the Software,
+  as long as the Software itself is not the product being sold.
+
+## Prohibited Uses
+
+You may NOT:
+
+- Offer the Software as a hosted or managed service to third parties — meaning
+  you cannot provide access to a running instance of the Software to users who
+  did not set it up themselves, in exchange for payment or free of charge.
+- Sublicense the Software for managed hosting purposes.
+
+**Exception:** Opsily (opsily.com) is the sole authorized managed hosting
+provider for Linki. This exception is non-transferable.
+
+---
+
+## Conditions
+
+Redistributions of source code must retain this license file in full.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
