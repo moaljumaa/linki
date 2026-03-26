@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+*.db
+*.db-shm
+*.db-wal
+data/
+scripts/tmp/
+playwright-browsers/
+.env*
+npm-debug.log*

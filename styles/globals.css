@@ -1,0 +1,68 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: notion --default;
+}
+
+@plugin "daisyui/theme" {
+  name: "notion";
+  default: true;
+  color-scheme: dark;
+  --color-base-100: #0f0f0f;
+  --color-base-200: #141414;
+  --color-base-300: #1f1f1f;
+  --color-base-content: #e6e6e6;
+  --color-primary: #2382fc;
+  --color-primary-content: #ffffff;
+  --color-neutral: #1f1f1f;
+  --color-neutral-content: #e6e6e6;
+  --color-info: #5aa2ff;
+  --color-success: #32d583;
+  --color-warning: #f4b740;
+  --color-error: #ff6b6b;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #0f0f0f;
+  color: #e6e6e6;
+  font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  letter-spacing: -0.01em;
+  color-scheme: dark;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+::selection {
+  background: rgba(35, 130, 252, 0.25);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
