@@ -1,0 +1,33 @@
+services:
+  linki:
+    image: moaljumaa/linki:latest
+    # To build from source instead: comment out image above and uncomment below
+    # build: .
+    ports:
+      - "127.0.0.1:${PORT:-3456}:3000"
+    volumes:
+      # Persist SQLite database outside the container
+      - ./data:/data
+    env_file:
+      - .env.local
+    environment:
+      # Runtime — always set by compose, do not put in .env.local
+      - NODE_ENV=production
+      - LINKI_DB_PATH=/data/linki.db
+
+      # --- copy the block below into .env.local and fill in values ---
+      #
+      # Public URL of the app (used by NextAuth for redirects)
+      # NEXTAUTH_URL=
+      #
+      # Random secret for NextAuth session signing
+      # Generate with: openssl rand -base64 32
+      # NEXTAUTH_SECRET=
+      #
+      # Password to log in to the Linki UI
+      # AUTH_PASSWORD=
+      #
+      # Set to "false" to show the browser during automation (debug only)
+      # HEADLESS=true
+
+    restart: unless-stopped
