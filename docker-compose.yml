@@ -1,8 +1,8 @@
 services:
   linki:
-    image: moaljumaa/linki:latest
+    # image: moaljumaa/linki:latest
     # To build from source instead: comment out image above and uncomment below
-    # build: .
+    build: .
     ports:
       - "127.0.0.1:${PORT:-3456}:3000"
     volumes:
