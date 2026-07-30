@@ -1,8 +1,69 @@
 import type { Page } from "playwright";
+import { readTopCard, vanityFrom, TOP_CARD } from "./top-card";
 
 export class WeeklyLimitError extends Error {}
 export class AlreadyConnectedError extends Error {}
 export class PendingInviteError extends Error {}
+
+/**
+ * The top card's "..." overflow trigger. It carries no aria-label and its
+ * classes are hashed, so it's identified by the icon it wraps
+ * (<svg id="overflow-web-ios-small">). Ancestors come first in document order,
+ * so .first() prefers a real button over the inner span when both exist.
+ */
+const OVERFLOW_TRIGGER = [
+  'button[aria-label*="More" i]',
+  '[role="button"][aria-label*="More" i]',
+  'button:has(svg[id*="overflow"])',
+  '[role="button"]:has(svg[id*="overflow"])',
+  'span:has(> svg[id*="overflow"])',
+];
+
+const MORE_BUTTON = OVERFLOW_TRIGGER.map(s => `${TOP_CARD} ${s}:visible`).join(", ");
+
+/**
+ * Same trigger, searched across the main column. Used only when the top card
+ * couldn't be pinned down: the profile's own "..." precedes any in suggestion
+ * cards further down, and opening the wrong menu has no side effect — the
+ * vanity check on the invite URL is what actually keeps us from inviting a
+ * stranger. Excludes the nav bar, which has its own "More".
+ */
+const MORE_BUTTON_ANYWHERE = OVERFLOW_TRIGGER.map(s => `main ${s}:visible`).join(", ");
+
+/**
+ * The Connect control itself, for the layouts that render it as a hrefless
+ * <button> opening the invite modal in place. Ancestors sort first in document
+ * order, so .first() lands on the button rather than the inner label/icon.
+ */
+const CONNECT_CONTROL = [
+  `${TOP_CARD} a[href*="custom-invite"]`,
+  `${TOP_CARD} button[aria-label*="to connect" i]`,
+  `${TOP_CARD} [role="button"][aria-label*="to connect" i]`,
+  `${TOP_CARD} button:has(svg[id^="connect"])`,
+  `${TOP_CARD} [role="button"]:has(svg[id^="connect"])`,
+  `${TOP_CARD} [aria-label*="to connect" i]`,
+].map(s => `${s}:visible`).join(", ");
+
+/**
+ * Navigates to a custom-invite URL, refusing first if it names anyone other
+ * than the profile we were asked to connect with — the last line of defence
+ * against inviting a "More profiles for you" suggestion by mistake. The check
+ * is skipped when the URL names nobody (some overlays are keyed only by member
+ * URN); scoping the lookup to the top card is what makes that case safe.
+ *
+ * Navigating beats clicking here because the Sales Nav overlay SVG intercepts
+ * pointer events on the profile page.
+ */
+async function gotoInvite(page: Page, href: string, linkedinUrl: string): Promise<void> {
+  const inviteUrl = href.startsWith("http") ? href : `https://www.linkedin.com${href}`;
+  const wanted = vanityFrom(linkedinUrl);
+  const inviting = vanityFrom(inviteUrl);
+  if (wanted && inviting && wanted !== inviting) {
+    throw new Error(`Connect link targets "${inviting}", expected "${wanted}" — refusing to invite`);
+  }
+  await page.goto(inviteUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+  await page.waitForTimeout(1000);
+}
 
 /**
  * Sends a LinkedIn connection request without a note.
@@ -14,47 +75,66 @@ export async function sendConnectionRequest(page: Page, linkedinUrl: string): Pr
   await page.goto(linkedinUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(2000 + Math.random() * 1000);
 
-  // Already connected? Primary signal: presence of the profile's "Message" link
-  // (only shown to 1st-degree connections) — an href attribute, not a CSS class
-  // or translated text, so it survives LinkedIn's class-name hashing and non-
-  // English UI languages. Falls back to the old text-scrape for accounts/layouts
-  // where that link isn't found as a plain <a href>.
-  const hasMessageLink = await page.locator('a[href*="/messaging/compose"]').first().count() > 0;
-  if (hasMessageLink) throw new AlreadyConnectedError("Already connected");
-  const pageText = await page.locator(".pv-top-card, .scaffold-layout__main").first().innerText().catch(() => "");
-  if (/\b1st\b/.test(pageText)) throw new AlreadyConnectedError("Already connected");
+  // Profile state is read from the top card only (see ./top-card). The rest of
+  // the page — "People also viewed", "More profiles for you" — carries Connect
+  // links, Message links and degree badges belonging to *other people*; a
+  // page-wide locator reads those and invites the wrong person.
+  const card = await readTopCard(page);
 
-  // Pending?
-  if (/\bPending\b/.test(pageText)) throw new PendingInviteError("Invitation already pending");
-  const pendingBtn = page.locator('button[aria-label*="Pending"]:visible');
-  if (await pendingBtn.count() > 0) throw new PendingInviteError("Invitation already pending");
+  // The degree badge is the authoritative connected/not-connected signal. A
+  // "Message" button is NOT: Open Profile members show one to everyone, and the
+  // overflow menu's "Send profile in a message" is itself a /messaging/compose
+  // link. Treating either as proof of 1st-degree cancels legitimate invites to
+  // 2nd/3rd-degree profiles.
+  if (card.degree === 1) throw new AlreadyConnectedError("Already connected");
 
-  // Case 1: Direct Connect link (primary CTA) — navigate to its href directly.
-  // Clicking fails because the Sales Nav overlay SVG intercepts pointer events.
-  const directConnect = page.locator('a[aria-label*="Invite"][aria-label*="to connect"]:visible, a[href*="custom-invite"]:visible').first();
-  if (await directConnect.count() > 0) {
-    const href = await directConnect.getAttribute("href");
-    if (!href) throw new Error("Connect link has no href");
-    const inviteUrl = href.startsWith("http") ? href : `https://www.linkedin.com${href}`;
-    await page.goto(inviteUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+  if (card.hasPendingButton || /\bPending\b/.test(card.text)) {
+    throw new PendingInviteError("Invitation already pending");
+  }
+
+  // LinkedIn puts Connect in the top card on some profiles and behind the "..."
+  // overflow menu on others, so both are handled. Within each, the control is
+  // either an <a> carrying a custom-invite URL (navigate to it) or a hrefless
+  // <button> that opens the invite modal in place (click it).
+  if (card.connectHref) {
+    await gotoInvite(page, card.connectHref, linkedinUrl);
+  } else if (card.hasConnectControl) {
+    await page.locator(CONNECT_CONTROL).first().click({ force: true });
     await page.waitForTimeout(1000);
   } else {
-    // Case 2: Connect is inside the "..." More menu
-    // LinkedIn has two "More" buttons on page: [0] = nav bar, [1] = profile card
-    const moreBtn = page.locator('button[aria-label="More"]:visible').nth(1);
+    let moreBtn = page.locator(MORE_BUTTON).first();
+    if (await moreBtn.count() === 0) moreBtn = page.locator(MORE_BUTTON_ANYWHERE).first();
+    if (await moreBtn.count() === 0) {
+      throw new Error(`No Connect action and no overflow menu on profile for ${card.name || linkedinUrl}`);
+    }
     await moreBtn.click();
     await page.waitForTimeout(800);
 
-    // Check for Pending in the menu — means invite was already sent
-    const pendingMenuItem = page.locator('[role="menuitem"]:has-text("Pending"):visible');
-    if (await pendingMenuItem.count() > 0) throw new PendingInviteError("Invitation already pending (found in More menu)");
+    // The menu is portaled out of the top card (popover, position:fixed), so it
+    // has to be located page-level rather than scoped to TOP_CARD.
+    const menu = page.locator('[role="menu"]:visible').first();
+    if (await menu.count() === 0) throw new Error("Overflow menu did not open");
 
-    const connectOption = page.locator('[role="menuitem"]:has-text("Connect"):visible');
-    if (await connectOption.count() === 0) throw new Error("Connect option not found in More menu");
-    await connectOption.first().click();
+    const menuText = await menu.innerText().catch(() => "");
+    if (/\bPending\b/.test(menuText)) {
+      throw new PendingInviteError("Invitation already pending (found in More menu)");
+    }
+
+    // Matched by href and icon id rather than the "Connect" label, which is
+    // translated on non-English accounts.
+    const menuConnect = menu.locator(
+      'a[href*="custom-invite"], [aria-label*="to connect" i], [role="menuitem"]:has(svg[id^="connect"])'
+    ).first();
+    if (await menuConnect.count() === 0) throw new Error("Connect option not found in More menu");
+
+    const href = await menuConnect.getAttribute("href").catch(() => null);
+    if (href) {
+      await gotoInvite(page, href, linkedinUrl);
+    } else {
+      await menuConnect.click({ force: true });
+      await page.waitForTimeout(1000);
+    }
   }
-
-  await page.waitForTimeout(1000);
 
   // Click "Send without a note" / "Send now"
   const sendBtn = page.locator(

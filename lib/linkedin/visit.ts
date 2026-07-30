@@ -1,4 +1,5 @@
 import type { Page } from "playwright";
+import { readTopCard, messagingUrnFrom } from "./top-card";
 
 /**
  * Visits a LinkedIn profile page. This registers as a profile view on LinkedIn.
@@ -6,29 +7,32 @@ import type { Page } from "playwright";
  * lets the runner backfill degree=1 for contacts that were already connected
  * before Linki ever sent them a connection request (e.g. manually added leads).
  *
- * Primary-degree signal: presence of the profile's primary "Message" link
- * (a[href*="/messaging/compose"]) — only shown to 1st-degree connections, reads
- * an href attribute rather than a CSS class or translated text, so it survives
- * both LinkedIn's periodic class-name hashing and non-English UI languages.
- * Falls back to the old text-scrape (".pv-top-card"/".scaffold-layout__main" +
- * /\b1st\b/) when that link isn't found, in case the current account's profile
- * layout doesn't render it as a plain link (e.g. buried behind a click/menu).
+ * Degree comes from the top card's badge only (see ./top-card). Two things make
+ * a looser read dangerous, because whatever this returns is written straight to
+ * targets.degree by the runner:
  *
- * The same link's href carries the messaging URN (urn:li:fsd_profile:ACoAA...)
- * needed to message this person directly later without a name-search typeahead
- * — see lib/linkedin/message.ts. Returned as messagingUrn when found.
+ *  - The rest of the main column ("People also viewed", "More profiles for
+ *    you") shows *other people's* degree badges, so a page-wide text scrape
+ *    marks nearly every visited profile as 1st-degree.
+ *  - A "Message" link is not evidence of a connection. Open Profile members
+ *    show a Message button to everyone, and the overflow menu's "Send profile
+ *    in a message" is itself a /messaging/compose link.
+ *
+ * Both produced the phantom degree=1 rows that lib/linkedin/sync-accepted.ts
+ * exists to clean up.
+ *
+ * The Message link is still read for its messaging URN
+ * (urn:li:fsd_profile:ACoAA...), which lets us message the person later without
+ * a name-search typeahead — see lib/linkedin/message.ts. Only the compose links
+ * that carry a profileUrn yield one; the rest return null.
  */
 export async function visitProfile(page: Page, linkedinUrl: string): Promise<{ isFirstDegree: boolean; messagingUrn: string | null }> {
   await page.goto(linkedinUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(3000 + Math.random() * 2000);
 
-  const messageLink = page.locator('a[href*="/messaging/compose"]').first();
-  const messageHref = (await messageLink.count()) > 0 ? await messageLink.getAttribute("href").catch(() => null) : null;
-  const urnMatch = messageHref?.match(/profileUrn=([^&]+)/);
-  const messagingUrn = urnMatch ? decodeURIComponent(urnMatch[1]) : null;
-
-  if (messageHref) return { isFirstDegree: true, messagingUrn };
-
-  const pageText = await page.locator(".pv-top-card, .scaffold-layout__main").first().innerText().catch(() => "");
-  return { isFirstDegree: /\b1st\b/.test(pageText), messagingUrn: null };
+  const card = await readTopCard(page);
+  return {
+    isFirstDegree: card.degree === 1,
+    messagingUrn: messagingUrnFrom(card.messageHref),
+  };
 }
