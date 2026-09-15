@@ -73,6 +73,17 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
        LIMIT 1`
     ).get(workflowId) as { id: string; status: string; list_id: string; list_name: string; account_name: string } | undefined;
 
+    const step_counts = db.prepare(
+      `SELECT rt.track, rt.current_step + 1 AS step_order, COUNT(*) AS count
+       FROM run_profile_tracks rt
+       JOIN run_profiles rp ON rp.id = rt.run_profile_id
+       JOIN runs r ON r.id = rp.run_id
+       WHERE r.workflow_id = ?
+         AND r.status IN ('running','paused','completed')
+         AND rt.state NOT IN ('completed','failed','skipped')
+       GROUP BY rt.track, rt.current_step`
+    ).all(workflowId) as { track: string; step_order: number; count: number }[];
+
     return res.json({
       total_prospects: counts.total_prospects ?? 0,
       active_prospects: counts.active_prospects ?? 0,
@@ -84,6 +95,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       messages_sent: counts.messages_sent ?? 0,
       inmails_sent: counts.inmails_sent ?? 0,
       emails_sent: counts.emails_sent ?? 0,
+      step_counts,
       active_run: activeRun ?? null,
     });
   } catch (err) {

@@ -81,6 +81,7 @@ interface Stats {
   messages_sent: number;
   inmails_sent: number;
   emails_sent: number;
+  step_counts: { track: string; step_order: number; count: number }[];
   active_run: {
     id: string;
     status: string;
@@ -100,6 +101,7 @@ interface Prospect {
   linkedin_url: string;
   state: string;
   current_step: number;
+  em_current_step: number;
   step_type: string | null;
   step_track: string | null;
   li_step_type: string | null;
@@ -173,6 +175,15 @@ function getEmailStepLabel(wizardSteps: Array<{ type: string }>, idx: number): s
   return `Follow-up ${ordinals[emailPos] ?? `#${emailPos + 1}`}`;
 }
 
+function actionProgress(p: Prospect, steps: Step[], track: string): string {
+  const trackSteps = steps.filter((s) => (s.track ?? (s.step_type === "email" ? "email" : "linkedin")) === track);
+  const actions = trackSteps.filter((s) => s.step_type !== "delay");
+  if (actions.length === 0) return "—";
+  const current = track === "email" ? (p.em_current_step ?? 0) : p.current_step;
+  const done = actions.filter((s) => s.step_order <= current).length;
+  return `${Math.min(done, actions.length)}/${actions.length}`;
+}
+
 // Returns dynamic label for a message step based on its position among all message steps
 function getMessageStepLabel(wizardSteps: Array<{ type: string }>, idx: number): string {
   const msgIndices = wizardSteps.map((s, i) => s.type === "message" ? i : -1).filter(i => i !== -1);
@@ -217,6 +228,13 @@ function formatNextAction(next_step_at: string | null, state: string): string {
   const hours = diff / 3600_000;
   if (hours < 24) return `in ${Math.round(hours)}h`;
   return `in ${Math.round(hours / 24)}d`;
+}
+
+function isInternalWait(p: Prospect): boolean {
+  if (p.state !== "in_progress" && p.state !== "pending") return false;
+  if (p.step_type === "delay") return false;
+  if (!p.next_step_at) return false;
+  return new Date(p.next_step_at).getTime() > Date.now();
 }
 
 // ─── Server-side ──────────────────────────────────────────────────────────────
@@ -2794,6 +2812,24 @@ export default function WorkflowDetailPage({
     }
   }
 
+  async function runNowProspect(runId: string, targetId: string) {
+    const res = await fetch(`/api/runs/${runId}/run-now`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target_ids: [targetId] }),
+    });
+    if (res.ok) {
+      toast.success("Queued to run now");
+      setProspects((prev) =>
+        prev.map((p) => p.target_id === targetId ? { ...p, next_step_at: null } : p)
+      );
+      refreshStats();
+    } else {
+      const err = await res.json();
+      toast.error(err.error ?? "Failed to queue");
+    }
+  }
+
   async function removeProspect(runId: string, targetId: string) {
     const res = await fetch(`/api/runs/${runId}/remove`, {
       method: "POST",
@@ -2812,7 +2848,7 @@ export default function WorkflowDetailPage({
   }
 
   // Group target_ids by run_id, then fire one request per run
-  async function bulkAction(action: "retry" | "remove" | "unenroll", targetIds: string[]) {
+  async function bulkAction(action: "retry" | "remove" | "unenroll" | "run-now", targetIds: string[]) {
     const grouped: Record<string, string[]> = {};
     for (const tid of targetIds) {
       const p = prospects.find((x) => x.target_id === tid);
@@ -2849,6 +2885,9 @@ export default function WorkflowDetailPage({
     if (action === "retry") {
       toast.success(`Retried ${targetIds.length} prospect${targetIds.length !== 1 ? "s" : ""}`);
       setProspects((prev) => prev.map((p) => targetIds.includes(p.target_id) ? { ...p, state: "in_progress", error_message: null } : p));
+    } else if (action === "run-now") {
+      toast.success(`Queued ${targetIds.length} prospect${targetIds.length !== 1 ? "s" : ""} to run now`);
+      setProspects((prev) => prev.map((p) => targetIds.includes(p.target_id) ? { ...p, next_step_at: null } : p));
     } else {
       toast.success(`${action === "remove" ? "Removed" : "Unenrolled"} ${targetIds.length} prospect${targetIds.length !== 1 ? "s" : ""}`);
       setProspects((prev) => prev.filter((p) => !targetIds.includes(p.target_id)));
@@ -2869,8 +2908,14 @@ export default function WorkflowDetailPage({
     messages_sent: 0,
     inmails_sent: 0,
     emails_sent: 0,
+    step_counts: [],
     active_run: initial.active_run,
   };
+
+  const stepCountByKey = new Map(
+    (displayStats.step_counts ?? []).map((c) => [`${c.track}:${c.step_order}`, c.count])
+  );
+  const stepCount = (track: string, step_order: number) => stepCountByKey.get(`${track}:${step_order}`) ?? 0;
 
   return (
     <>
@@ -3031,7 +3076,7 @@ export default function WorkflowDetailPage({
       {/* Main layout */}
       {activeTab === "prospects" && <div className="flex gap-8" style={{ height: "calc(100vh - 148px)" }}>
         {/* Sidebar */}
-        <div className="w-52 shrink-0 overflow-y-auto">
+        <div className="w-56 shrink-0 overflow-y-auto">
           {/* All prospects */}
           <button
             onClick={() => setSelectedStep(null)}
@@ -3068,6 +3113,9 @@ export default function WorkflowDetailPage({
                   const sel = isStepSelected(s);
                   const delayStep = prevDelay;
                   const delayDays = delayStep ? Math.round(delayStep.delay_seconds / 86400) : 0;
+                  const delaySel = typeof selectedStep === "object" && selectedStep !== null && selectedStep.track === track && selectedStep.step_order === delayStep?.step_order;
+                  const delayCount = delayStep ? stepCount(track, delayStep.step_order) : 0;
+                  const actionCount = stepCount(track, s.step_order);
                   prevDelay = null;
 
                   rendered.push(
@@ -3078,13 +3126,19 @@ export default function WorkflowDetailPage({
                           <button
                             onClick={() => {
                               const delayKey = { track, step_order: delayStep!.step_order };
-                              const isSel = typeof selectedStep === "object" && selectedStep !== null && selectedStep.track === track && selectedStep.step_order === delayStep!.step_order;
-                              setSelectedStep(isSel ? null : delayKey);
+                              setSelectedStep(delaySel ? null : delayKey);
                             }}
-                            className={`w-full flex items-center gap-2 py-1 px-3 rounded-lg transition-colors ${typeof selectedStep === "object" && selectedStep !== null && selectedStep.track === track && selectedStep.step_order === delayStep?.step_order ? "bg-base-300/60 text-base-content/70" : "text-base-content/40 hover:text-base-content/70 hover:bg-base-200/60"}`}
+                            className={`w-full flex items-center justify-between gap-2 py-1 px-3 rounded-lg transition-colors ${delaySel ? "bg-base-300/60 text-base-content/70" : "text-base-content/40 hover:text-base-content/70 hover:bg-base-200/60"}`}
                           >
-                            <RiTimeLine size={11} className="shrink-0" />
-                            <span className="text-xs">Wait {delayDays}d</span>
+                            <span className="flex items-center gap-2 min-w-0">
+                              <RiTimeLine size={11} className="shrink-0" />
+                              <span className="text-xs">Wait {delayDays}d</span>
+                            </span>
+                            {delayCount > 0 && (
+                              <span className={`text-xs px-1.5 py-0.5 rounded-md tabular-nums shrink-0 ${delaySel ? "bg-base-content/10 text-base-content/70" : "bg-base-300 text-base-content/40"}`}>
+                                {delayCount}
+                              </span>
+                            )}
                           </button>
                           <div className="flex justify-center"><div className="w-px h-3 bg-base-content/20" /></div>
                         </>
@@ -3093,14 +3147,21 @@ export default function WorkflowDetailPage({
                       ) : null}
                       <button
                         onClick={() => setSelectedStep(sel ? null : { track, step_order: s.step_order })}
-                        className={`w-full text-left px-3 py-3 rounded-xl transition-all flex items-center gap-3 border ${sel ? "bg-primary/10 border-primary/30" : "bg-base-200 border-base-300/40 hover:border-base-300/80"}`}
+                        className={`w-full text-left px-3 py-3 rounded-xl transition-all flex items-center justify-between gap-2 border ${sel ? "bg-primary/10 border-primary/30" : "bg-base-200 border-base-300/40 hover:border-base-300/80"}`}
                       >
-                        <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs border ${sel ? "bg-primary/20 border-primary/40 text-primary" : `${STEP_COLORS[s.step_type]}`}`}>
-                          {STEP_ICONS[s.step_type]}
+                        <span className="flex items-center gap-3 min-w-0">
+                          <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs border ${sel ? "bg-primary/20 border-primary/40 text-primary" : `${STEP_COLORS[s.step_type]}`}`}>
+                            {STEP_ICONS[s.step_type]}
+                          </span>
+                          <p className={`text-xs font-medium leading-tight ${sel ? "text-primary" : "text-base-content"}`}>
+                            {STEP_LABELS[s.step_type] ?? s.step_type}
+                          </p>
                         </span>
-                        <p className={`text-xs font-medium leading-tight ${sel ? "text-primary" : "text-base-content"}`}>
-                          {STEP_LABELS[s.step_type] ?? s.step_type}
-                        </p>
+                        {actionCount > 0 && (
+                          <span className={`text-xs px-1.5 py-0.5 rounded-md tabular-nums shrink-0 ${sel ? "bg-primary/20 text-primary" : "bg-base-300 text-base-content/40"}`}>
+                            {actionCount}
+                          </span>
+                        )}
                       </button>
                     </div>
                   );
@@ -3175,6 +3236,7 @@ export default function WorkflowDetailPage({
                 ) : (() => {
                   const sel = prospects.filter((p) => selected.has(p.target_id));
                   const failedSel = sel.filter((p) => p.state === "failed");
+                  const runNowSel = sel.filter((p) => isRunning && isInternalWait(p));
                   const unenrollSel = sel.filter((p) => isActive && (p.state === "pending" || p.state === "in_progress"));
                   const removeSel = sel.filter((p) => p.state !== "completed");
                   return (
@@ -3186,6 +3248,14 @@ export default function WorkflowDetailPage({
                           onClick={() => bulkAction("retry", failedSel.map((p) => p.target_id))}
                         >
                           <RiRefreshLine size={12} /> Retry {failedSel.length} failed
+                        </button>
+                      )}
+                      {runNowSel.length > 0 && (
+                        <button
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors"
+                          onClick={() => bulkAction("run-now", runNowSel.map((p) => p.target_id))}
+                        >
+                          <RiPlayLine size={12} /> Run now {runNowSel.length}
                         </button>
                       )}
                       {unenrollSel.length > 0 && (
@@ -3236,6 +3306,7 @@ export default function WorkflowDetailPage({
                       <th>Name</th>
                       <th>Company</th>
                       <th>Step</th>
+                      <th>Progress</th>
                       <th>Status</th>
                       <th>Next Action</th>
                       <th className="w-8"></th>
@@ -3244,7 +3315,7 @@ export default function WorkflowDetailPage({
                   <tbody>
                     {prospects.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="text-center text-base-content/30 py-8 text-xs">
+                        <td colSpan={8} className="text-center text-base-content/30 py-8 text-xs">
                           No prospects match this filter.
                         </td>
                       </tr>
@@ -3277,6 +3348,14 @@ export default function WorkflowDetailPage({
                               : st === "email"
                               ? <span className="text-warning/80">Cold Email</span>
                               : st ? (STEP_LABELS[st] ?? st) : "—";
+                          })()}
+                        </td>
+                        <td className="text-xs tabular-nums text-base-content/60">
+                          {(() => {
+                            const activeTrack = typeof selectedStep === "object" && selectedStep !== null
+                              ? selectedStep.track
+                              : (p.step_track ?? "linkedin");
+                            return actionProgress(p, steps, activeTrack);
                           })()}
                         </td>
                         <td>
@@ -3315,6 +3394,15 @@ export default function WorkflowDetailPage({
                                 className="inline-flex items-center p-1 rounded text-base-content/20 hover:text-info hover:bg-info/10 transition-colors"
                               >
                                 <RiRefreshLine size={13} />
+                              </button>
+                            )}
+                            {isRunning && isInternalWait(p) && (
+                              <button
+                                title="Run now"
+                                onClick={() => runNowProspect(p.run_id, p.target_id)}
+                                className="inline-flex items-center p-1 rounded text-base-content/20 hover:text-primary hover:bg-primary/10 transition-colors"
+                              >
+                                <RiPlayLine size={13} />
                               </button>
                             )}
                             {p.state !== "completed" && (

@@ -472,6 +472,8 @@ function runMigrations(db: Database.Database) {
     "ALTER TABLE lists ADD COLUMN purpose TEXT",
     // Manual/CSV-only field — no automation reads or writes this, reference data only.
     "ALTER TABLE targets ADD COLUMN phone TEXT",
+    // One-shot flag: skip working hours + daily caps on the next runner tick (Run now).
+    "ALTER TABLE run_profile_tracks ADD COLUMN force_next INTEGER NOT NULL DEFAULT 0",
   ];
   for (const sql of migrations) {
     try { db.exec(sql); } catch { /* column already exists */ }

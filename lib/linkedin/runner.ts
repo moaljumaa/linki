@@ -154,6 +154,7 @@ interface TrackRun {
   last_email_body: string | null;
   last_linkedin_message: string | null;
   pending_reply_context: string | null;
+  force_next: number;
   // joined from run_profiles / runs
   run_id: string;
   target_id: string;
@@ -264,8 +265,10 @@ function enforceSchedule(
   runId: string,
   targetId: string,
   name: string,
-  schedule: ScheduleConfig
+  schedule: ScheduleConfig,
+  skip = false
 ): boolean {
+  if (skip) return true;
   if (isWithinSchedule(schedule)) return true;
   const nextSlot = nextScheduledSlot(schedule);
   log(db, runId, targetId, "info", `Outside working schedule — rescheduling ${name} to ${nextSlot}`);
@@ -489,6 +492,11 @@ async function executeStep(
 
   const step = steps[stepIndex];
   const name = target.full_name ?? target.linkedin_url;
+  const skipSchedule = tr.force_next === 1;
+  if (skipSchedule) {
+    db.prepare("UPDATE run_profile_tracks SET force_next = 0 WHERE id = ?").run(tr.id);
+    tr.force_next = 0;
+  }
 
   try {
     if (step.step_type === "delay") {
@@ -516,7 +524,7 @@ async function executeStep(
       log(db, runId, target.id, "info", `Visited ${name}`);
 
     } else if (step.step_type === "connect") {
-      if (!enforceSchedule(db, tr, runId, target.id, name, accountLimits)) return;
+      if (!enforceSchedule(db, tr, runId, target.id, name, accountLimits, skipSchedule)) return;
 
       const freshTarget = db.prepare("SELECT * FROM targets WHERE id = ?").get(target.id) as Target;
       if (freshTarget.degree === 1) {
@@ -552,7 +560,7 @@ async function executeStep(
 
     } else if (step.step_type === "message") {
       await ensureSalesNavEnriched(db, target, accountId);
-      if (!enforceSchedule(db, tr, runId, target.id, name, accountLimits)) return;
+      if (!enforceSchedule(db, tr, runId, target.id, name, accountLimits, skipSchedule)) return;
 
       const freshTarget = db.prepare("SELECT * FROM targets WHERE id = ?").get(target.id) as Target;
       if (freshTarget.degree !== 1) {
@@ -667,7 +675,7 @@ async function executeStep(
         return;
       }
       await ensureSalesNavEnriched(db, target, accountId);
-      if (!enforceSchedule(db, tr, runId, target.id, name, accountLimits)) return;
+      if (!enforceSchedule(db, tr, runId, target.id, name, accountLimits, skipSchedule)) return;
 
       const freshTarget = db.prepare("SELECT * FROM targets WHERE id = ?").get(target.id) as Target;
       if (!freshTarget.sales_nav_url) {
@@ -769,7 +777,7 @@ async function executeStep(
         return;
       }
 
-      if (!enforceSchedule(db, tr, runId, target.id, name, emailAccountLimits)) return;
+      if (!enforceSchedule(db, tr, runId, target.id, name, emailAccountLimits, skipSchedule)) return;
 
       const freshTarget = db.prepare("SELECT * FROM targets WHERE id = ?").get(target.id) as Target;
       if (!freshTarget.email) {
@@ -1171,7 +1179,7 @@ async function tick(db: ReturnType<typeof getDb>): Promise<void> {
   const dueTrackRuns = db.prepare(
     `SELECT rt.id, rt.run_profile_id, rt.track, rt.state, rt.current_step, rt.next_step_at,
             rt.error_message, rt.last_email_subject, rt.last_email_body, rt.last_linkedin_message,
-            rt.pending_reply_context,
+            rt.pending_reply_context, rt.force_next,
             rp.run_id, rp.target_id, rp.email_account_id,
             r.account_id, r.workflow_id,
             t.connection_requested_at
@@ -1295,6 +1303,11 @@ async function tick(db: ReturnType<typeof getDb>): Promise<void> {
     if (stepIndex >= steps.length) { toExecute.push(tr); continue; }
     const step = steps[stepIndex];
     const limits = accountLimitsMap.get(tr.account_id)!;
+
+    if (tr.force_next) {
+      toExecute.push(tr);
+      continue;
+    }
 
     if (step.step_type === "connect") {
       // A connect step is "due" both when it's about to send a NEW request and when

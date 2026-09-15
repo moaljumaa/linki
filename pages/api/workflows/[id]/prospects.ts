@@ -162,6 +162,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
                 ELSE 'completed'
               END as state,
               COALESCE(rt_li.current_step, 0) as current_step,
+              COALESCE(rt_em.current_step, 0) as em_current_step,
               COALESCE(rt_li.next_step_at, rt_em.next_step_at) as next_step_at,
               COALESCE(rt_li.error_message, rt_em.error_message) as error_message,
               t.full_name, t.title, t.company, t.linkedin_url,

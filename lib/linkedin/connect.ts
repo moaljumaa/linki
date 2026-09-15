@@ -40,29 +40,53 @@ export async function sendConnectionRequest(page: Page, linkedinUrl: string): Pr
   const pendingBtn = page.locator('button[aria-label*="Pending"]:visible');
   if (await pendingBtn.count() > 0) throw new PendingInviteError("Invitation already pending");
 
-  // Case 1: Direct Connect link (primary CTA) — navigate to its href directly.
-  // Clicking fails because the Sales Nav overlay SVG intercepts pointer events.
-  const directConnect = page.locator('a[aria-label*="Invite"][aria-label*="to connect"]:visible, a[href*="custom-invite"]:visible').first();
+  // Case 1: Connect is a primary CTA on the profile card (button or invite link).
+  // If it's a link, goto the href — clicking can miss because overlay SVGs intercept pointer events.
+  // MUST stay inside topCard: sidebar "More profiles for you" also has Connect buttons.
+  // :visible so a Connect row sitting in a closed overflow menu does not steal this path.
+  const directConnect = topCard.locator(
+    'a[aria-label*="Invite"][aria-label*="to connect"]:visible, button[aria-label*="Invite"][aria-label*="to connect"]:visible, a[href*="custom-invite"]:visible, button:has-text("Connect"):visible, a:has-text("Connect"):visible'
+  ).first();
   if (await directConnect.count() > 0) {
     const href = await directConnect.getAttribute("href");
-    if (!href) throw new Error("Connect link has no href");
-    const inviteUrl = href.startsWith("http") ? href : `https://www.linkedin.com${href}`;
-    await page.goto(inviteUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+    if (href) {
+      const inviteUrl = href.startsWith("http") ? href : `https://www.linkedin.com${href}`;
+      await page.goto(inviteUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+    } else {
+      await directConnect.click({ timeout: 5000 });
+    }
     await page.waitForTimeout(1000);
   } else {
-    // Case 2: Connect is inside the "..." More menu
-    // LinkedIn has two "More" buttons on page: [0] = nav bar, [1] = profile card
-    const moreBtn = page.locator('button[aria-label="More"]:visible').nth(1);
-    await moreBtn.click();
+    // Case 2: Connect is inside an overflow menu.
+    // Flagship /in/ profiles: pill with visible "More" text (or aria-label More / More actions).
+    // Sales Nav /sales/lead/ profiles: icon-only ••• with aria-label "Open actions overflow menu"
+    // and data-x--lead-actions-bar-overflow-menu — no "More" text, so the old locator timed out.
+    // Do not use page-wide .nth(1) — LinkedIn's nav no longer has a More button,
+    // so the second match never appears and the click times out (Sep 2026).
+    const overflowSelector = [
+      'button[aria-label="Open actions overflow menu"]',
+      "button[data-x--lead-actions-bar-overflow-menu]",
+      'button[aria-label="More"]',
+      'button[aria-label*="More"]',
+      'button:has-text("More")',
+    ].join(", ");
+    let moreBtn = topCard.locator(overflowSelector).first();
+    if (await moreBtn.count() === 0) {
+      // Action bar can sit outside the h1 <section> (new flagship card / Sales Nav lead page).
+      moreBtn = page.locator("main").locator(overflowSelector).first();
+    }
+    await moreBtn.click({ timeout: 8000 });
     await page.waitForTimeout(800);
 
-    // Check for Pending in the menu — means invite was already sent
-    const pendingMenuItem = page.locator('[role="menuitem"]:has-text("Pending"):visible');
+    const pendingMenuItem = page.locator('[role="menuitem"]:has-text("Pending"):visible, [role="option"]:has-text("Pending"):visible');
     if (await pendingMenuItem.count() > 0) throw new PendingInviteError("Invitation already pending (found in More menu)");
 
-    const connectOption = page.locator('[role="menuitem"]:has-text("Connect"):visible');
+    // Sales Nav Hue menus often omit role="menuitem"; match visible Connect rows too.
+    const connectOption = page.locator(
+      '[role="menuitem"]:has-text("Connect"):visible, [role="option"]:has-text("Connect"):visible, [role="button"]:has-text("Connect"):visible, button:has-text("Connect"):visible'
+    ).first();
     if (await connectOption.count() === 0) throw new Error("Connect option not found in More menu");
-    await connectOption.first().click();
+    await connectOption.click({ timeout: 5000 });
   }
 
   await page.waitForTimeout(1000);
