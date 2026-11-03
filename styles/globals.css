@@ -1,0 +1,156 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: notion --default;
+}
+
+@plugin "daisyui/theme" {
+  name: "notion";
+  default: true;
+  color-scheme: dark;
+  --color-base-100: #0f0f0f;
+  --color-base-200: #141414;
+  --color-base-300: #1f1f1f;
+  --color-base-content: #e6e6e6;
+  --color-primary: #2382fc;
+  --color-primary-content: #ffffff;
+  --color-neutral: #1f1f1f;
+  --color-neutral-content: #e6e6e6;
+  --color-info: #5aa2ff;
+  --color-success: #32d583;
+  --color-warning: #f4b740;
+  --color-error: #ff6b6b;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #0f0f0f;
+  color: #e6e6e6;
+  font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  letter-spacing: -0.01em;
+  color-scheme: dark;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+::selection {
+  background: rgba(35, 130, 252, 0.25);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Product tour (driver.js) — themed to match the "notion" dark palette.
+   driver.js renders its own DOM outside React, so these are plain hex overrides
+   of its own class names rather than DaisyUI/Tailwind classes. */
+.linki-tour-popover.driver-popover {
+  background: #141414;
+  border: 1px solid #1f1f1f;
+  border-radius: 12px;
+  color: #e6e6e6;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+.linki-tour-popover .driver-popover-title {
+  color: #e6e6e6;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+}
+.linki-tour-popover .driver-popover-description {
+  color: rgba(230, 230, 230, 0.7);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.linki-tour-popover .driver-popover-progress-text {
+  color: rgba(230, 230, 230, 0.3);
+  font-size: 11px;
+}
+.linki-tour-popover .driver-popover-footer button {
+  background: #1f1f1f;
+  color: #e6e6e6;
+  text-shadow: none;
+  border: 1px solid #1f1f1f;
+  border-radius: 8px;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 12px;
+  padding: 6px 12px;
+}
+.linki-tour-popover .driver-popover-footer button:hover {
+  background: #2382fc;
+  border-color: #2382fc;
+  color: #ffffff;
+}
+.linki-tour-popover .driver-popover-close-btn {
+  color: rgba(230, 230, 230, 0.4);
+}
+.linki-tour-popover .driver-popover-close-btn:hover {
+  color: #e6e6e6;
+}
+.linki-tour-popover .driver-popover-arrow-side-left.driver-popover-arrow,
+.linki-tour-popover .driver-popover-arrow-side-right.driver-popover-arrow,
+.linki-tour-popover .driver-popover-arrow-side-top.driver-popover-arrow,
+.linki-tour-popover .driver-popover-arrow-side-bottom.driver-popover-arrow {
+  border-color: transparent;
+}
+.driver-popover-arrow-side-left { border-left-color: #141414; }
+.driver-popover-arrow-side-right { border-right-color: #141414; }
+.driver-popover-arrow-side-top { border-top-color: #141414; }
+.driver-popover-arrow-side-bottom { border-bottom-color: #141414; }
+
+/* Dialer — cheerleader avatar (Dialy) */
+@keyframes dialy-hop { 0%, 100% { transform: translateY(0) scale(1, 1) } 20% { transform: translateY(1px) scale(1.04, 0.95) } 50% { transform: translateY(-12px) scale(0.98, 1.03) } }
+@keyframes dialy-breathe { 0%, 100% { transform: scale(1, 1) } 50% { transform: scale(1.015, 1.03) } }
+@keyframes dialy-wave-l { 0%, 100% { transform: rotate(8deg) } 50% { transform: rotate(-26deg) } }
+@keyframes dialy-wave-r { 0%, 100% { transform: rotate(-8deg) } 50% { transform: rotate(26deg) } }
+@keyframes dialy-blink { 0%, 92%, 100% { transform: scaleY(1) } 96% { transform: scaleY(0.08) } }
+@keyframes dialy-spark { 0%, 100% { opacity: 0; transform: scale(0.4) rotate(0) } 50% { opacity: 1; transform: scale(1) rotate(20deg) } }
+@keyframes dialy-shadow { 0%, 100% { transform: scaleX(1); opacity: .35 } 50% { transform: scaleX(0.8); opacity: .2 } }
+@keyframes dialy-confetti { 0% { opacity: 0; transform: translate(0, 0) rotate(0) } 12% { opacity: 1 } 70% { opacity: 1 } 100% { opacity: 0; transform: translate(var(--dx), calc(var(--dy) + 46px)) rotate(var(--r)) } }
+.dialy-body { transform-origin: 80px 142px; transform-box: view-box; }
+.dialy-cheer .dialy-body { animation: dialy-hop 0.8s ease-in-out infinite; }
+.dialy-celebrate .dialy-body { animation: dialy-hop 0.65s ease-in-out infinite; }
+.dialy-idle .dialy-body { animation: dialy-breathe 3.6s ease-in-out infinite; }
+.dialy-arm-l { animation: dialy-wave-l 0.8s ease-in-out infinite; transform-origin: 44px 106px; transform-box: view-box; }
+.dialy-arm-r { animation: dialy-wave-r 0.8s ease-in-out infinite; transform-origin: 116px 106px; transform-box: view-box; }
+.dialy-celebrate .dialy-arm-l, .dialy-celebrate .dialy-arm-r { animation-duration: 0.55s; }
+.dialy-eyes { animation: dialy-blink 4.2s infinite; transform-origin: 80px 86px; transform-box: view-box; }
+.dialy-spark { animation: dialy-spark 1.8s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+.dialy-shadow { animation: dialy-shadow 0.8s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+.dialy-idle .dialy-shadow { animation: none; }
+.dialy-confetti { opacity: 0; animation: dialy-confetti 1.6s ease-out infinite; transform-origin: center; transform-box: fill-box; }
+@media (prefers-reduced-motion: reduce) {
+  .dialy, .dialy * { animation: none !important; }
+  .dialy-confetti { opacity: 1; }
+}
+@keyframes dialer-pop { 0% { transform: scale(0.85); opacity: 0 } 100% { transform: scale(1); opacity: 1 } }
+@keyframes dialer-pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.45) } 100% { box-shadow: 0 0 0 14px rgba(52, 211, 153, 0) } }
+.dialer-pop { animation: dialer-pop 0.25s ease-out; }
+.dialer-live { animation: dialer-pulse-ring 1.4s ease-out infinite; }

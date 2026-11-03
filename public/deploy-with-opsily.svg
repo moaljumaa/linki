@@ -1,0 +1,21 @@
+<svg width="200" height="36" viewBox="0 0 200 36" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Deploy with Opsily" shape-rendering="geometricPrecision">
+  <title>Deploy with Opsily</title>
+  <rect width="200" height="36" rx="8" ry="8" fill="#0f0f0f"/>
+  <rect x="0.5" y="0.5" width="199" height="35" rx="7.5" ry="7.5" fill="none" stroke="#333" stroke-width="1"/>
+
+  <!-- Opsily mini logo (3-block pyramid, scaled to 20x20 at x=10 y=8) -->
+  <g fill="white" transform="translate(10, 8) scale(0.1)">
+    <rect x="78" y="55" width="44" height="44" rx="10" ry="10"/>
+    <rect x="51" y="101" width="44" height="44" rx="10" ry="10"/>
+    <rect x="105" y="101" width="44" height="44" rx="10" ry="10"/>
+  </g>
+
+  <!-- "Deploy with" label -->
+  <text x="38" y="14" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#888" letter-spacing="0.3">DEPLOY WITH</text>
+
+  <!-- "Opsily" wordmark -->
+  <text x="38" y="26" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="white">Opsily</text>
+
+  <!-- Arrow -->
+  <text x="178" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#555">›</text>
+</svg>

@@ -1,0 +1,21 @@
+node_modules
+.next
+.git
+*.db
+*.db-shm
+*.db-wal
+data/
+# Exclude local/dev scripts, but KEEP the build-critical ones: the Docker build runs
+# `npm run build` → prebuild → scripts/mirror-ee.js (open-core mirror; no-ops without ee/).
+# strip-mirrored-pages.js is kept alongside it for consistency. See docs/OPEN_CORE.md.
+scripts/*
+!scripts/mirror-ee.js
+!scripts/strip-mirrored-pages.js
+mcp/
+playwright-browsers/
+.env*
+npm-debug.log*
+.deploy/
+.publish/
+docs/
+CLAUDE.md

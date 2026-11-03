@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="100%" height="100%">
+  <!-- Solid Black Background -->
+  <rect width="240" height="240" rx="48" fill="#000000"/>
+  
+  <!-- White Hand-Drawn Envelope -->
+  <g fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Box outline, purposefully overshooting the edges -->
+    <path d="M 35 70 Q 120 68 210 75" />
+    <path d="M 200 65 Q 205 130 195 180" />
+    <path d="M 205 170 Q 120 175 35 165" />
+    <path d="M 45 175 Q 38 120 40 60" />
+    
+    <!-- Envelope Flap dipping down -->
+    <path d="M 30 75 Q 120 135 210 65" />
+  </g>
+</svg>
